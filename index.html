@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shop Finder Pro - Smart Local Search</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --text-main: #f8fafc;
+            --text-sub: #94a3b8;
+            --border-color: #334155;
+            --accent: #2563eb;
+        }
+
+        .light-mode {
+            --bg-primary: #f8fafc;
+            --bg-secondary: #ffffff;
+            --text-main: #0f172a;
+            --text-sub: #64748b;
+            --border-color: #e2e8f0;
+            --accent: #2563eb;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; transition: background 0.3s, color 0.3s; }
+        body { background: var(--bg-primary); color: var(--text-main); padding: 10px; min-height: 100vh; }
+        
+        .header { display: flex; justify-content: space-between; align-items: center; padding: 12px 15px; background: var(--bg-secondary); border-radius: 12px; margin-bottom: 10px; border: 1px solid var(--border-color); }
+        .header h1 { font-size: 18px; color: #38bdf8; display: flex; align-items: center; gap: 8px; }
+        
+        .theme-btn { background: none; border: none; color: var(--text-main); font-size: 18px; cursor: pointer; padding: 5px; }
+
+        .search-bar { display: flex; gap: 6px; margin-bottom: 10px; }
+        .search-bar input { flex: 1; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-main); font-size: 14px; }
+        .search-bar button { padding: 10px 14px; background: var(--accent); color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
+
+        .categories { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 10px; scrollbar-width: none; }
+        .cat-chip { padding: 6px 14px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 20px; font-size: 12px; font-weight: bold; white-space: nowrap; cursor: pointer; color: var(--text-sub); }
+        .cat-chip.active { background: var(--accent); color: white; border-color: var(--accent); }
+
+        .controls { display: flex; gap: 6px; margin-bottom: 10px; }
+        .btn { flex: 1; padding: 9px 10px; font-size: 12px; font-weight: bold; border: none; color: white; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; }
+        .btn-green { background: #10b981; } .btn-orange { background: #f59e0b; color: #000; } .btn-blue { background: var(--accent); }
+
+        #map { height: 380px; width: 100%; border-radius: 12px; border: 1px solid var(--border-color); margin-bottom: 10px; }
+
+        .form-card { display: none; background: var(--bg-secondary); padding: 15px; border-radius: 12px; border: 1px solid var(--border-color); margin-bottom: 10px; }
+        .form-card input, .form-card select { width: 100%; margin-bottom: 8px; padding: 10px; background: var(--bg-primary); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 6px; }
+
+        /* Popup Styling */
+        .popup-box { width: 230px; font-size: 12px; color: #0f172a; }
+        .popup-title { font-size: 15px; font-weight: bold; margin-bottom: 4px; display: flex; align-items: center; gap: 4px; }
+        .verified { color: #1d9bf0; font-size: 13px; }
+        .status-badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; color: white; margin-bottom: 6px; }
+        .open { background: #10b981; } .closed { background: #ef4444; }
+        .action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 8px; }
+        .action-btn { padding: 6px; border-radius: 6px; text-decoration: none; text-align: center; font-size: 11px; font-weight: bold; color: white; display: flex; align-items: center; justify-content: center; gap: 4px; }
+        .btn-call { background: #10b981; }
+        .btn-wa { background: #25d366; }
+        .btn-nav { background: #2563eb; grid-column: span 2; }
+        .btn-fav { background: #ec4899; }
+        .btn-share { background: #8b5cf6; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1><i class="fa-solid fa-location-dot"></i> Shop Finder Pro</h1>
+        <button class="theme-btn" onclick="toggleTheme()" id="themeIcon"><i class="fa-solid fa-moon"></i></button>
+    </div>
+
+    <div class="search-bar">
+        <input type="text" id="citySearch" placeholder="City ya dukan search karein...">
+        <button onclick="searchArea()"><i class="fa-solid fa-magnifying-glass"></i></button>
+    </div>
+
+    <div class="categories">
+        <div class="cat-chip active" onclick="filterCat('All', this)">Sabhi (All)</div>
+        <div class="cat-chip" onclick="filterCat('Grocery', this)">🛒 Grocery</div>
+        <div class="cat-chip" onclick="filterCat('Restaurant', this)">🍕 Restaurant</div>
+        <div class="cat-chip" onclick="filterCat('Pharmacy', this)">💊 Pharmacy</div>
+        <div class="cat-chip" onclick="filterCat('Electronics', this)">⚡ Electronics</div>
+    </div>
+
+    <div class="controls">
+        <button class="btn btn-green" onclick="locateMe()"><i class="fa-solid fa-crosshairs"></i> My GPS</button>
+        <button class="btn btn-orange" onclick="fetchShops()"><i class="fa-solid fa-bolt"></i> Fetch Shops</button>
+        <button class="btn btn-blue" onclick="toggleForm()"><i class="fa-solid fa-plus"></i> Add Shop</button>
+    </div>
+
+    <div id="addForm" class="form-card">
+        <h3 style="color:#38bdf8; margin-bottom:10px;">➕ Add New Shop</h3>
+        <input type="text" id="sName" placeholder="Shop Name *">
+        <select id="sCat">
+            <option value="Grocery">Grocery</option>
+            <option value="Restaurant">Restaurant</option>
+            <option value="Pharmacy">Pharmacy</option>
+            <option value="Electronics">Electronics</option>
+            <option value="General">General</option>
+        </select>
+        <input type="text" id="sPhone" placeholder="Mobile Number (Call/WA)">
+        <input type="text" id="sLat" placeholder="Click Map for Latitude" readonly>
+        <input type="text" id="sLng" placeholder="Click Map for Longitude" readonly>
+        <button class="btn btn-blue" style="width:100%; padding:10px;" onclick="saveShop()">Save Shop</button>
+    </div>
+
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        let map, markersGroup, userPos = null;
+        let selectedCategory = 'All';
+        let localShops = JSON.parse(localStorage.getItem('my_shops') || '[]');
+        let favorites = JSON.parse(localStorage.getItem('my_favs') || '[]');
+
+        function initMap() {
+            if (!map) {
+                map = L.map('map').setView([28.6139, 77.2090], 13);
+                L.tileLayer('http://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+                    maxZoom: 20, subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+                }).addTo(map);
+
+                markersGroup = L.layerGroup().addTo(map);
+
+                map.on('click', (e) => {
+                    document.getElementById('sLat').value = e.latlng.lat;
+                    document.getElementById('sLng').value = e.latlng.lng;
+                    alert("📍 Map Location Selected!");
+                });
+                renderShops([]);
+            }
+        }
+
+        function toggleTheme() {
+            document.body.classList.toggle('light-mode');
+            const icon = document.getElementById('themeIcon');
+            if(document.body.classList.contains('light-mode')) {
+                icon.innerHTML = '<i class="fa-solid fa-sun"></i>';
+            } else {
+                icon.innerHTML = '<i class="fa-solid fa-moon"></i>';
+            }
+        }
+
+        function locateMe() {
+            initMap();
+            navigator.geolocation.getCurrentPosition(pos => {
+                userPos = [pos.coords.latitude, pos.coords.longitude];
+                map.setView(userPos, 15);
+                L.marker(userPos).addTo(map).bindPopup("<b>📍 Aap Yahan Ho!</b>").openPopup();
+                fetchShops();
+            }, () => alert("Kripya Phone ka GPS ON karein!"));
+        }
+
+        async function searchArea() {
+            const q = document.getElementById('citySearch').value;
+            if(!q) return;
+            const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}`);
+            const data = await res.json();
+            if(data.length > 0) {
+                initMap();
+                map.setView([data[0].lat, data[0].lon], 14);
+                fetchShops();
+            }
+        }
+
+        async function fetchShops() {
+            initMap();
+            const center = map.getCenter();
+            const query = `[out:json];(node["shop"](around:2000,${center.lat},${center.lng});node["amenity"~"restaurant|cafe|pharmacy"](around:2000,${center.lat},${center.lng}););out body 30;`;
+            try {
+                const res = await fetch("https://overpass-api.de/api/interpreter?data=" + encodeURIComponent(query));
+                const data = await res.json();
+                const fetched = data.elements.map(item => ({
+                    id: item.id,
+                    name: item.tags.name || "Local Shop",
+                    cat: mapCat(item.tags.shop || item.tags.amenity),
+                    phone: item.tags.phone || item.tags["contact:phone"] || "9876543210",
+                    lat: item.lat, lng: item.lon,
+                    verified: true
+                }));
+                renderShops(fetched);
+            } catch(e) {}
+        }
+
+        function mapCat(rawCat) {
+            if(!rawCat) return "General";
+            if(rawCat.includes("supermarket") || rawCat.includes("grocery")) return "Grocery";
+            if(rawCat.includes("restaurant") || rawCat.includes("cafe")) return "Restaurant";
+            if(rawCat.includes("pharmacy")) return "Pharmacy";
+            if(rawCat.includes("electronics")) return "Electronics";
+            return "General";
+        }
+
+        function filterCat(cat, el) {
+            selectedCategory = cat;
+            document.querySelectorAll('.cat-chip').forEach(c => c.classList.remove('active'));
+            el.classList.add('active');
+            renderShops([]);
+        }
+
+        function getDistance(lat1, lon1, lat2, lon2) {
+            if (!lat1 || !lat2) return "";
+            const R = 6371;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return (R * c).toFixed(1) + " km";
+        }
+
+        function renderShops(apiShops) {
+            markersGroup.clearLayers();
+            const all = [...localShops, ...apiShops];
+            
+            all.forEach(s => {
+                if(selectedCategory !== 'All' && s.cat !== selectedCategory) return;
+
+                const dist = userPos ? getDistance(userPos[0], userPos[1], s.lat, s.lng) : "";
+                const isFav = favorites.includes(s.name);
+
+                const m = L.marker([s.lat, s.lng]);
+                m.bindPopup(`
+                    <div class="popup-box">
+                        <div class="popup-title">
+                            ${s.name} <i class="fa-solid fa-circle-check verified"></i>
+                        </div>
+                        <div><span class="status-badge open">● Open Now</span> <b>${s.cat}</b></div>
+                        ${dist ? `<p>📏 Door: <b>${dist}</b></p>` : ''}
+                        
+                        <div class="action-grid">
+                            <a class="action-btn btn-call" href="tel:${s.phone}"><i class="fa-solid fa-phone"></i> Call</a>
+                            <a class="action-btn btn-wa" href="https://wa.me/91${s.phone}" target="_blank"><i class="fa-brands fa-whatsapp"></i> WA</a>
+                            <a class="action-btn btn-fav" href="javascript:void(0)" onclick="toggleFav('${s.name}')"><i class="fa-solid fa-heart"></i> ${isFav ? 'Saved' : 'Fav'}</a>
+                            <a class="action-btn btn-share" href="javascript:void(0)" onclick="shareShop('${s.name}')"><i class="fa-solid fa-share-nodes"></i> Share</a>
+                            <a class="action-btn btn-nav" href="https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}" target="_blank"><i class="fa-solid fa-location-arrow"></i> Google Maps Navigation</a>
+                        </div>
+                    </div>
+                `);
+                markersGroup.addLayer(m);
+            });
+        }
+
+        function toggleFav(name) {
+            if(favorites.includes(name)) {
+                favorites = favorites.filter(f => f !== name);
+            } else {
+                favorites.push(name);
+            }
+            localStorage.setItem('my_favs', JSON.stringify(favorites));
+            alert("Favorite list updated!");
+        }
+
+        function shareShop(name) {
+            if(navigator.share) {
+                navigator.share({ title: name, text: `Check out ${name} on Shop Finder!`, url: window.location.href });
+            } else {
+                alert(`Link copied for ${name}!`);
+            }
+        }
+
+        function toggleForm() {
+            const f = document.getElementById('addForm');
+            f.style.display = f.style.display === 'block' ? 'none' : 'block';
+            initMap();
+        }
+
+        function saveShop() {
+            const name = document.getElementById('sName').value;
+            const cat = document.getElementById('sCat').value;
+            const phone = document.getElementById('sPhone').value || "9876543210";
+            const lat = document.getElementById('sLat').value;
+            const lng = document.getElementById('sLng').value;
+            if(!name || !lat) return alert("Pehle Map par click karke location chunein!");
+            localShops.push({ name, cat, phone, lat: parseFloat(lat), lng: parseFloat(lng), verified: true });
+            localStorage.setItem('my_shops', JSON.stringify(localShops));
+            alert("✅ New Shop Saved!");
+            toggleForm();
+            renderShops([]);
+        }
+
+        window.onload = initMap;
+    </script>
+</body>
+</html>
